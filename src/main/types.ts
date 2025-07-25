@@ -65,6 +65,7 @@ export interface ScanResult {
     lockedImgUrl?: string;
     closedImgUrl?: string;
     doneImgUrl?: string;
+    isFlattened?: boolean;
   }>;
   issues: Issue[];
 }

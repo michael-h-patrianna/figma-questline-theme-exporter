@@ -145,6 +145,105 @@ function findImageNode(parent: SceneNode): (SceneNode & GeometryMixin) | null {
   return candidates[0] || null;
 }
 
+/**
+ * Find quest elements in the specific component structure:
+ * Quest Component
+ * ├── Properties (group)
+ * │   └── questKey (Text node)
+ * └── Visuals (frame)
+ *     └── Image (frame with image fill) + optional additional elements
+ */
+function findQuestElements(parent: SceneNode, questKey: string): {
+  type: 'simple' | 'complex';
+  node: SceneNode;
+  bounds: { x: number; y: number; width: number; height: number };
+} | null {
+  if (!hasFindAll(parent)) return null;
+  
+  // Find the Visuals frame
+  const visualsFrame = parent.findOne(n => n.name === 'Visuals');
+  if (!visualsFrame || !('children' in visualsFrame)) {
+    console.log('SCAN DEBUG: No Visuals frame found in quest', questKey);
+    return null;
+  }
+  
+  const children = visualsFrame.children;
+  console.log('SCAN DEBUG: Visuals frame children for quest', questKey, ':', children.map(c => c.name));
+  console.log('SCAN DEBUG: Children count:', children.length);
+  
+  // Check if it's simple (just Image) or complex (multiple elements)
+  const imageChild = children.find(c => c.name === 'Image');
+  const hasMultipleElements = children.length > 1;
+  const hasImageAndOthers = imageChild && hasMultipleElements;
+  
+  console.log('SCAN DEBUG: Analysis for quest', questKey, ':');
+  console.log('  - Has Image child:', !!imageChild);
+  console.log('  - Has multiple elements:', hasMultipleElements);
+  console.log('  - Has Image + others:', hasImageAndOthers);
+  console.log('  - All children names:', children.map(c => c.name));
+  
+  if (imageChild && !hasMultipleElements) {
+    // Simple quest: just the Image frame
+    console.log('SCAN DEBUG: Simple quest structure for', questKey, '- found Image frame');
+    return {
+      type: 'simple',
+      node: imageChild,
+      bounds: {
+        x: imageChild.x + visualsFrame.x + parent.x,
+        y: imageChild.y + visualsFrame.y + parent.y,
+        width: imageChild.width,
+        height: imageChild.height
+      }
+    };
+  } else if (hasMultipleElements) {
+    // Complex quest: multiple elements in Visuals frame (including Image + siblings)
+    console.log('SCAN DEBUG: Complex quest structure for', questKey, '- found', children.length, 'elements in Visuals');
+    console.log('SCAN DEBUG: Elements:', children.map(c => c.name));
+    console.log('SCAN DEBUG: Will export entire Visuals frame for', questKey);
+    
+    return {
+      type: 'complex',
+      node: visualsFrame,
+      bounds: {
+        x: visualsFrame.x + parent.x,
+        y: visualsFrame.y + parent.y,
+        width: visualsFrame.width,
+        height: visualsFrame.height
+      }
+    };
+  }
+  
+  console.log('SCAN DEBUG: No valid quest structure found for', questKey);
+  return null;
+}
+
+/**
+ * Find questKey from the Properties group
+ */
+function findQuestKey(parent: SceneNode): string | null {
+  if (!hasFindAll(parent)) return null;
+  
+  // Find the Properties group
+  const propertiesGroup = parent.findOne(n => n.name === 'Properties');
+  if (!propertiesGroup || !('children' in propertiesGroup)) {
+    console.log('SCAN DEBUG: No Properties group found');
+    return null;
+  }
+  
+  // Find questKey text node
+  const questKeyNode = propertiesGroup.children.find(n => 
+    n.type === 'TEXT' && n.name.toLowerCase().includes('questkey')
+  ) as TextNode | undefined;
+  
+  if (questKeyNode && questKeyNode.characters) {
+    console.log('SCAN DEBUG: Found questKey:', questKeyNode.characters);
+    return questKeyNode.characters;
+  }
+  
+  console.log('SCAN DEBUG: No questKey text found in Properties group');
+  return null;
+}
+
 /**************************************
  * Main scan function
  **************************************/
@@ -216,29 +315,38 @@ export async function scanQuestline(): Promise<ScanResult> {
       (node.type === 'GROUP' && Array.isArray((node as any).children) && (node as any).children.some((child: any) => child.type === 'FRAME' && child.name === 'Image'));
     console.log('SCAN DEBUG: isCandidate', isCandidate);
     if (!isCandidate) continue;
-    // Extract questKey
+    // Extract questKey - try new structure first, then fallback to old methods
     let questKeyRaw = '';
-    if (node.type === 'INSTANCE' && 'componentProperties' in node) {
-      for (const key of Object.keys((node as any).componentProperties)) {
-        if (key.startsWith('questKey')) {
-          questKeyRaw = String((node as any).componentProperties[key].value);
-          break;
+    
+    // Try new component structure first
+    const newQuestKey = findQuestKey(node);
+    if (newQuestKey) {
+      questKeyRaw = newQuestKey;
+      console.log('SCAN DEBUG: Found questKey using new structure:', questKeyRaw);
+    } else {
+      // Fallback to old methods
+      if (node.type === 'INSTANCE' && 'componentProperties' in node) {
+        for (const key of Object.keys((node as any).componentProperties)) {
+          if (key.startsWith('questKey')) {
+            questKeyRaw = String((node as any).componentProperties[key].value);
+            break;
+          }
+        }
+      } else if (node.type === 'GROUP' && 'componentProperties' in node) {
+        for (const key of Object.keys((node as any).componentProperties)) {
+          if (key.startsWith('questKey')) {
+            questKeyRaw = String((node as any).componentProperties[key].value);
+            break;
+          }
+        }
+      } else if (node.type === 'GROUP' && Array.isArray((node as any).children)) {
+        const textNode = (node as any).children.find((child: any) => child.type === 'TEXT');
+        if (textNode && typeof textNode.characters === 'string') {
+          questKeyRaw = textNode.characters;
         }
       }
-    } else if (node.type === 'GROUP' && 'componentProperties' in node) {
-      for (const key of Object.keys((node as any).componentProperties)) {
-        if (key.startsWith('questKey')) {
-          questKeyRaw = String((node as any).componentProperties[key].value);
-          break;
-        }
-      }
-    } else if (node.type === 'GROUP' && Array.isArray((node as any).children)) {
-      const textNode = (node as any).children.find((child: any) => child.type === 'TEXT');
-      if (textNode && typeof textNode.characters === 'string') {
-        questKeyRaw = textNode.characters;
-      }
+      console.log('SCAN DEBUG: questKeyRaw (fallback):', questKeyRaw);
     }
-    console.log('SCAN DEBUG: questKeyRaw', questKeyRaw);
     
     // Validate quest key
     if (!questKeyRaw || questKeyRaw.trim() === '') {
@@ -286,17 +394,38 @@ export async function scanQuestline(): Promise<ScanResult> {
     // Add to tracked keys
     questKeys.add(questKey);
     
-    // Find image node
+    // Find image node and quest bounds - try new structure first, then fallback
     let imageNode: (SceneNode & GeometryMixin) | null = null;
-    if (node.type === 'GROUP' && Array.isArray((node as any).children)) {
-      imageNode = (node as any).children.find((c: any) => isGeometryWithFills(c) && c.name === 'Image' && !!firstImagePaint(c)) || null;
-      console.log('SCAN DEBUG: GROUP node children:', (node as any).children?.map((c: any) => ({ name: c.name, type: c.type, hasFills: isGeometryWithFills(c), hasImagePaint: !!firstImagePaint(c) })));
-    } else if (node.type === 'INSTANCE' && hasFindAll(node)) {
-      imageNode = findImageNode(node);
-      console.log('SCAN DEBUG: INSTANCE node, findImageNode result:', imageNode ? imageNode.name : 'null');
+    let questBounds: { x: number; y: number; width: number; height: number } | null = null;
+    
+    // Try new component structure first
+    const questElements = findQuestElements(node, questKey);
+    if (questElements) {
+      imageNode = questElements.node as SceneNode & GeometryMixin;
+      questBounds = questElements.bounds;
+      console.log('SCAN DEBUG: Found quest elements using new structure:', questElements.type, 'node:', imageNode.name);
+    } else {
+      // Fallback to old methods
+      if (node.type === 'GROUP' && Array.isArray((node as any).children)) {
+        imageNode = (node as any).children.find((c: any) => isGeometryWithFills(c) && c.name === 'Image' && !!firstImagePaint(c)) || null;
+        console.log('SCAN DEBUG: GROUP node children:', (node as any).children?.map((c: any) => ({ name: c.name, type: c.type, hasFills: isGeometryWithFills(c), hasImagePaint: !!firstImagePaint(c) })));
+      } else if (node.type === 'INSTANCE' && hasFindAll(node)) {
+        imageNode = findImageNode(node);
+        console.log('SCAN DEBUG: INSTANCE node, findImageNode result:', imageNode ? imageNode.name : 'null');
+      }
+      
+      if (imageNode) {
+        questBounds = {
+          x: imageNode.x + node.x,
+          y: imageNode.y + node.y,
+          width: imageNode.width,
+          height: imageNode.height
+        };
+      }
     }
+    
     console.log('SCAN DEBUG: imageNode', imageNode ? imageNode.name : null, imageNode ? imageNode.type : null);
-    if (!imageNode) {
+    if (!imageNode || !questBounds) {
       console.log('SCAN DEBUG: No imageNode found for quest', questKey, 'node:', node.name, 'type:', node.type);
       continue;
     }
@@ -311,76 +440,155 @@ export async function scanQuestline(): Promise<ScanResult> {
       if ('exportAsync' in imageNode) {
         console.log('SCAN DEBUG: imageNode has exportAsync, attempting export');
         
-        // Always export all three states: locked, closed, and open
-        if (node.type === 'INSTANCE' && 'componentProperties' in node) {
-          const instance = node as InstanceNode;
-          const originalState = instance.componentProperties.State?.value;
+        // Handle different export strategies based on quest type
+        if (questElements?.type === 'complex') {
+          // For complex quests, export the entire Visuals frame for each state
+          console.log('SCAN DEBUG: Exporting complex quest for', questKeyRaw, '- using Visuals frame');
           
-          try {
-            // First, export locked state
-            instance.setProperties({ State: 'locked' });
-            await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
+          if (node.type === 'INSTANCE' && 'componentProperties' in node) {
+            const instance = node as InstanceNode;
+            const originalState = instance.componentProperties.State?.value;
             
-            // Re-find the image node in locked state
-            let lockedImageNode: (SceneNode & GeometryMixin) | null = null;
-            if (hasFindAll(instance)) {
-              lockedImageNode = findImageNode(instance);
+            try {
+              // First, export locked state
+              instance.setProperties({ State: 'locked' });
+              await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
+              
+              // Re-find the Visuals frame in locked state
+              let lockedVisualsFrame: SceneNode | null = null;
+              if (hasFindAll(instance)) {
+                lockedVisualsFrame = instance.findOne(n => n.name === 'Visuals');
+              }
+              
+              if (lockedVisualsFrame) {
+                lockedImgUrl = await safeExportNodeAsPng(lockedVisualsFrame);
+                console.log('SCAN DEBUG: locked state export result for', questKeyRaw, ':', lockedImgUrl ? 'SUCCESS' : 'FAILED');
+              }
+              
+              // Then, export closed state
+              instance.setProperties({ State: 'closed' });
+              await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
+              
+              // Re-find the Visuals frame in closed state
+              let closedVisualsFrame: SceneNode | null = null;
+              if (hasFindAll(instance)) {
+                closedVisualsFrame = instance.findOne(n => n.name === 'Visuals');
+              }
+              
+              if (closedVisualsFrame) {
+                closedImgUrl = await safeExportNodeAsPng(closedVisualsFrame);
+                console.log('SCAN DEBUG: closed state export result for', questKeyRaw, ':', closedImgUrl ? 'SUCCESS' : 'FAILED');
+              }
+              
+              // Finally, export open state
+              instance.setProperties({ State: 'open' });
+              await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
+              
+              // Re-find the Visuals frame in open state
+              let openVisualsFrame: SceneNode | null = null;
+              if (hasFindAll(instance)) {
+                openVisualsFrame = instance.findOne(n => n.name === 'Visuals');
+              }
+              
+              if (openVisualsFrame) {
+                doneImgUrl = await safeExportNodeAsPng(openVisualsFrame);
+                console.log('SCAN DEBUG: open state export result for', questKeyRaw, ':', doneImgUrl ? 'SUCCESS' : 'FAILED');
+              } else {
+                console.log('SCAN DEBUG: could not find Visuals frame in open state for', questKeyRaw);
+                doneImgUrl = lockedImgUrl; // Fallback to locked image
+              }
+              
+              // Restore original state
+              if (originalState) {
+                instance.setProperties({ State: originalState });
+              }
+            } catch (e) {
+              console.log('SCAN DEBUG: failed to export states for', questKeyRaw, e);
+              // Fallback: use current state for all three
+              lockedImgUrl = await safeExportNodeAsPng(imageNode);
+              closedImgUrl = lockedImgUrl;
+              doneImgUrl = lockedImgUrl;
             }
-            
-            if (lockedImageNode) {
-              lockedImgUrl = await safeExportNodeAsPng(lockedImageNode);
-              console.log('SCAN DEBUG: locked state export result for', questKeyRaw, ':', lockedImgUrl ? 'SUCCESS' : 'FAILED');
-            }
-            
-            // Then, export closed state
-            instance.setProperties({ State: 'closed' });
-            await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
-            
-            // Re-find the image node in closed state
-            let closedImageNode: (SceneNode & GeometryMixin) | null = null;
-            if (hasFindAll(instance)) {
-              closedImageNode = findImageNode(instance);
-            }
-            
-            if (closedImageNode) {
-              closedImgUrl = await safeExportNodeAsPng(closedImageNode);
-              console.log('SCAN DEBUG: closed state export result for', questKeyRaw, ':', closedImgUrl ? 'SUCCESS' : 'FAILED');
-            }
-            
-            // Finally, export open state
-            instance.setProperties({ State: 'open' });
-            await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
-            
-            // Re-find the image node in open state
-            let openImageNode: (SceneNode & GeometryMixin) | null = null;
-            if (hasFindAll(instance)) {
-              openImageNode = findImageNode(instance);
-            }
-            
-            if (openImageNode) {
-              doneImgUrl = await safeExportNodeAsPng(openImageNode);
-              console.log('SCAN DEBUG: open state export result for', questKeyRaw, ':', doneImgUrl ? 'SUCCESS' : 'FAILED');
-            } else {
-              console.log('SCAN DEBUG: could not find image node in open state for', questKeyRaw);
-              doneImgUrl = lockedImgUrl; // Fallback to locked image
-            }
-            
-            // Restore original state
-            if (originalState) {
-              instance.setProperties({ State: originalState });
-            }
-          } catch (e) {
-            console.log('SCAN DEBUG: failed to export states for', questKeyRaw, e);
-            // Fallback: use current state for all three
+          } else {
+            // For non-instance complex quests, export current state for all three
             lockedImgUrl = await safeExportNodeAsPng(imageNode);
             closedImgUrl = lockedImgUrl;
             doneImgUrl = lockedImgUrl;
           }
         } else {
-          // For non-instance nodes, export current state for all three
-          lockedImgUrl = await safeExportNodeAsPng(imageNode);
-          closedImgUrl = lockedImgUrl;
-          doneImgUrl = lockedImgUrl;
+          // For simple quests, export just the Image frame for each state
+          console.log('SCAN DEBUG: Exporting simple quest for', questKeyRaw, '- using Image frame');
+          
+          if (node.type === 'INSTANCE' && 'componentProperties' in node) {
+            const instance = node as InstanceNode;
+            const originalState = instance.componentProperties.State?.value;
+            
+            try {
+              // First, export locked state
+              instance.setProperties({ State: 'locked' });
+              await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
+              
+              // Re-find the image node in locked state
+              let lockedImageNode: (SceneNode & GeometryMixin) | null = null;
+              if (hasFindAll(instance)) {
+                lockedImageNode = findImageNode(instance);
+              }
+              
+              if (lockedImageNode) {
+                lockedImgUrl = await safeExportNodeAsPng(lockedImageNode);
+                console.log('SCAN DEBUG: locked state export result for', questKeyRaw, ':', lockedImgUrl ? 'SUCCESS' : 'FAILED');
+              }
+              
+              // Then, export closed state
+              instance.setProperties({ State: 'closed' });
+              await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
+              
+              // Re-find the image node in closed state
+              let closedImageNode: (SceneNode & GeometryMixin) | null = null;
+              if (hasFindAll(instance)) {
+                closedImageNode = findImageNode(instance);
+              }
+              
+              if (closedImageNode) {
+                closedImgUrl = await safeExportNodeAsPng(closedImageNode);
+                console.log('SCAN DEBUG: closed state export result for', questKeyRaw, ':', closedImgUrl ? 'SUCCESS' : 'FAILED');
+              }
+              
+              // Finally, export open state
+              instance.setProperties({ State: 'open' });
+              await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
+              
+              // Re-find the image node in open state
+              let openImageNode: (SceneNode & GeometryMixin) | null = null;
+              if (hasFindAll(instance)) {
+                openImageNode = findImageNode(instance);
+              }
+              
+              if (openImageNode) {
+                doneImgUrl = await safeExportNodeAsPng(openImageNode);
+                console.log('SCAN DEBUG: open state export result for', questKeyRaw, ':', doneImgUrl ? 'SUCCESS' : 'FAILED');
+              } else {
+                console.log('SCAN DEBUG: could not find image node in open state for', questKeyRaw);
+                doneImgUrl = lockedImgUrl; // Fallback to locked image
+              }
+              
+              // Restore original state
+              if (originalState) {
+                instance.setProperties({ State: originalState });
+              }
+            } catch (e) {
+              console.log('SCAN DEBUG: failed to export states for', questKeyRaw, e);
+              // Fallback: use current state for all three
+              lockedImgUrl = await safeExportNodeAsPng(imageNode);
+              closedImgUrl = lockedImgUrl;
+              doneImgUrl = lockedImgUrl;
+            }
+          } else {
+            // For non-instance nodes, export current state for all three
+            lockedImgUrl = await safeExportNodeAsPng(imageNode);
+            closedImgUrl = lockedImgUrl;
+            doneImgUrl = lockedImgUrl;
+          }
         }
         
         if (!lockedImgUrl) {
@@ -410,10 +618,10 @@ export async function scanQuestline(): Promise<ScanResult> {
           quests.push({
         nodeId: node.id,
         questKey: questKey, // Use validated questKey
-        x: imageNode.x + node.x,
-        y: imageNode.y + node.y,
-        w: imageNode.width,
-        h: imageNode.height,
+        x: questBounds.x,
+        y: questBounds.y,
+        w: questBounds.width,
+        h: questBounds.height,
         rotation: (imageNode as any).rotation || 0,
         lockedNodeId: imageNode.id,
         closedNodeId: imageNode.id,
@@ -421,6 +629,7 @@ export async function scanQuestline(): Promise<ScanResult> {
         lockedImgUrl: lockedImgUrl, // State=locked image
         closedImgUrl: closedImgUrl, // State=closed image
         doneImgUrl: doneImgUrl,     // State=open image
+        isFlattened: questElements?.type === 'complex',
       });
     console.log('SCAN DEBUG: quest added, total now', quests.length);
     console.log('SCAN DEBUG: Added quest:', { questKey, nodeId: node.id, x: imageNode.x + node.x, y: imageNode.y + node.y });
