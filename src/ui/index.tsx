@@ -41,7 +41,7 @@ function App() {
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [exportResult, setExportResult] = useState<{ json: QuestlineExport | null; issues: Issue[] } | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [previewMode, setPreviewMode] = useState<'wireframe' | 'locked' | 'closed' | 'open'>('wireframe');
+  const [previewMode, setPreviewMode] = useState<'wireframe' | 'locked' | 'active' | 'unclaimed' | 'completed'>('wireframe');
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const uiPanelRef = useRef<HTMLDivElement>(null);
@@ -237,11 +237,13 @@ function App() {
   if (scan && scan.backgroundFillUrl) {
     bgFillUrl = scan.backgroundFillUrl;
   }
-  // Extract quest image fills as data URLs for open/closed
+  // Extract quest image fills as data URLs for all states
   const previewQuests = (scan?.quests || []).map((q: any) => ({
     ...q,
     lockedImgUrl: q.lockedImgUrl,
-    doneImgUrl: q.doneImgUrl,
+    activeImgUrl: q.activeImgUrl,
+    unclaimedImgUrl: q.unclaimedImgUrl,
+    completedImgUrl: q.completedImgUrl,
   }));
   
 
@@ -491,7 +493,7 @@ function App() {
                            {/* Preview Mode Switcher */}
                  <div style={{ 
                    display: 'flex', 
-                   gap: 6, 
+                   gap: 4, 
                    alignItems: 'center',
                    flexWrap: 'wrap'
                  }}>
@@ -500,41 +502,51 @@ function App() {
                      color: textColor, 
                      border: 'none', 
                      borderRadius: 6, 
-                     padding: '8px 12px', 
+                     padding: '6px 10px', 
                      fontWeight: 600, 
                      cursor: 'pointer',
-                     fontSize: 12
-                   }} onClick={() => setPreviewMode('wireframe')}>Wireframe</button>
+                     fontSize: 11
+                   }} onClick={() => setPreviewMode('wireframe')}>Wire</button>
                    <button style={{ 
                      background: previewMode === 'locked' ? accent : darkPanel, 
                      color: textColor, 
                      border: 'none', 
                      borderRadius: 6, 
-                     padding: '8px 12px', 
+                     padding: '6px 10px', 
                      fontWeight: 600, 
                      cursor: 'pointer',
-                     fontSize: 12
+                     fontSize: 11
                    }} onClick={() => setPreviewMode('locked')}>Locked</button>
                    <button style={{ 
-                     background: previewMode === 'closed' ? accent : darkPanel, 
+                     background: previewMode === 'active' ? accent : darkPanel, 
                      color: textColor, 
                      border: 'none', 
                      borderRadius: 6, 
-                     padding: '8px 12px', 
+                     padding: '6px 10px', 
                      fontWeight: 600, 
                      cursor: 'pointer',
-                     fontSize: 12
-                   }} onClick={() => setPreviewMode('closed')}>Closed</button>
+                     fontSize: 11
+                   }} onClick={() => setPreviewMode('active')}>Active</button>
                    <button style={{ 
-                     background: previewMode === 'open' ? accent : darkPanel, 
+                     background: previewMode === 'unclaimed' ? accent : darkPanel, 
                      color: textColor, 
                      border: 'none', 
                      borderRadius: 6, 
-                     padding: '8px 12px', 
+                     padding: '6px 10px', 
                      fontWeight: 600, 
                      cursor: 'pointer',
-                     fontSize: 12
-                   }} onClick={() => setPreviewMode('open')}>Open</button>
+                     fontSize: 11
+                   }} onClick={() => setPreviewMode('unclaimed')}>Unclaimed</button>
+                   <button style={{ 
+                     background: previewMode === 'completed' ? accent : darkPanel, 
+                     color: textColor, 
+                     border: 'none', 
+                     borderRadius: 6, 
+                     padding: '6px 10px', 
+                     fontWeight: 600, 
+                     cursor: 'pointer',
+                     fontSize: 11
+                   }} onClick={() => setPreviewMode('completed')}>Done</button>
                  </div>
           
           {/* Preview Canvas */}

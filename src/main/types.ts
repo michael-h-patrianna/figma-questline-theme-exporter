@@ -10,8 +10,9 @@ export interface Quest {
   h: number;
   rotation: number;
   lockedImg: string; // path to PNG file (State=locked)
-  closedImg: string; // path to PNG file (State=closed)
-  doneImg: string;   // path to PNG file (State=open)
+  activeImg: string; // path to PNG file (State=active) - mandatory
+  unclaimedImg: string; // path to PNG file (State=unclaimed)
+  completedImg: string; // path to PNG file (State=completed)
 }
 
 export interface QuestlineExport {
@@ -40,7 +41,7 @@ export type IssueCode =
   | 'QUEST_KEY_OUT_OF_BOUNDS'
   | 'QUEST_KEY_NOT_INSIDE_PARENT'
   | 'QUEST_KEY_AUTO_LAYOUT_ENABLED'
-  | 'MISSING_DONE_VARIANT'
+  | 'MISSING_ACTIVE_VARIANT'
   | 'MISSING_QUEST_KEY'
   | 'IMAGE_EXPORT_FAILED'
   | 'VALIDATION_FAILED'
@@ -60,11 +61,13 @@ export interface ScanResult {
     h: number;
     rotation: number;
     lockedNodeId: string;
-    closedNodeId: string;
-    doneNodeId: string;
+    activeNodeId: string;
+    unclaimedNodeId: string;
+    completedNodeId: string;
     lockedImgUrl?: string;
-    closedImgUrl?: string;
-    doneImgUrl?: string;
+    activeImgUrl?: string;
+    unclaimedImgUrl?: string;
+    completedImgUrl?: string;
     isFlattened?: boolean;
   }>;
   issues: Issue[];

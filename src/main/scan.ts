@@ -429,10 +429,11 @@ export async function scanQuestline(): Promise<ScanResult> {
       console.log('SCAN DEBUG: No imageNode found for quest', questKey, 'node:', node.name, 'type:', node.type);
       continue;
     }
-    // Export quest image in all three states (locked, closed, and open)
+    // Export quest image in all four states (locked, active, unclaimed, completed)
     let lockedImgUrl: string | undefined = undefined;
-    let closedImgUrl: string | undefined = undefined;
-    let doneImgUrl: string | undefined = undefined;
+    let activeImgUrl: string | undefined = undefined;
+    let unclaimedImgUrl: string | undefined = undefined;
+    let completedImgUrl: string | undefined = undefined;
     
     console.log('SCAN DEBUG: about to export quest images for', questKeyRaw);
     
@@ -465,37 +466,52 @@ export async function scanQuestline(): Promise<ScanResult> {
                 console.log('SCAN DEBUG: locked state export result for', questKeyRaw, ':', lockedImgUrl ? 'SUCCESS' : 'FAILED');
               }
               
-              // Then, export closed state
-              instance.setProperties({ State: 'closed' });
+              // Then, export active state (mandatory)
+              instance.setProperties({ State: 'active' });
               await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
               
-              // Re-find the Visuals frame in closed state
-              let closedVisualsFrame: SceneNode | null = null;
+              // Re-find the Visuals frame in active state
+              let activeVisualsFrame: SceneNode | null = null;
               if (hasFindAll(instance)) {
-                closedVisualsFrame = instance.findOne(n => n.name === 'Visuals');
+                activeVisualsFrame = instance.findOne(n => n.name === 'Visuals');
               }
               
-              if (closedVisualsFrame) {
-                closedImgUrl = await safeExportNodeAsPng(closedVisualsFrame);
-                console.log('SCAN DEBUG: closed state export result for', questKeyRaw, ':', closedImgUrl ? 'SUCCESS' : 'FAILED');
+              if (activeVisualsFrame) {
+                activeImgUrl = await safeExportNodeAsPng(activeVisualsFrame);
+                console.log('SCAN DEBUG: active state export result for', questKeyRaw, ':', activeImgUrl ? 'SUCCESS' : 'FAILED');
               }
               
-              // Finally, export open state
-              instance.setProperties({ State: 'open' });
+              // Then, export unclaimed state
+              instance.setProperties({ State: 'unclaimed' });
               await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
               
-              // Re-find the Visuals frame in open state
-              let openVisualsFrame: SceneNode | null = null;
+              // Re-find the Visuals frame in unclaimed state
+              let unclaimedVisualsFrame: SceneNode | null = null;
               if (hasFindAll(instance)) {
-                openVisualsFrame = instance.findOne(n => n.name === 'Visuals');
+                unclaimedVisualsFrame = instance.findOne(n => n.name === 'Visuals');
               }
               
-              if (openVisualsFrame) {
-                doneImgUrl = await safeExportNodeAsPng(openVisualsFrame);
-                console.log('SCAN DEBUG: open state export result for', questKeyRaw, ':', doneImgUrl ? 'SUCCESS' : 'FAILED');
+              if (unclaimedVisualsFrame) {
+                unclaimedImgUrl = await safeExportNodeAsPng(unclaimedVisualsFrame);
+                console.log('SCAN DEBUG: unclaimed state export result for', questKeyRaw, ':', unclaimedImgUrl ? 'SUCCESS' : 'FAILED');
+              }
+              
+              // Finally, export completed state
+              instance.setProperties({ State: 'completed' });
+              await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
+              
+              // Re-find the Visuals frame in completed state
+              let completedVisualsFrame: SceneNode | null = null;
+              if (hasFindAll(instance)) {
+                completedVisualsFrame = instance.findOne(n => n.name === 'Visuals');
+              }
+              
+              if (completedVisualsFrame) {
+                completedImgUrl = await safeExportNodeAsPng(completedVisualsFrame);
+                console.log('SCAN DEBUG: completed state export result for', questKeyRaw, ':', completedImgUrl ? 'SUCCESS' : 'FAILED');
               } else {
-                console.log('SCAN DEBUG: could not find Visuals frame in open state for', questKeyRaw);
-                doneImgUrl = lockedImgUrl; // Fallback to locked image
+                console.log('SCAN DEBUG: could not find Visuals frame in completed state for', questKeyRaw);
+                completedImgUrl = activeImgUrl; // Fallback to active image
               }
               
               // Restore original state
@@ -506,14 +522,16 @@ export async function scanQuestline(): Promise<ScanResult> {
               console.log('SCAN DEBUG: failed to export states for', questKeyRaw, e);
               // Fallback: use current state for all three
               lockedImgUrl = await safeExportNodeAsPng(imageNode);
-              closedImgUrl = lockedImgUrl;
-              doneImgUrl = lockedImgUrl;
+              activeImgUrl = lockedImgUrl;
+              unclaimedImgUrl = lockedImgUrl;
+              completedImgUrl = lockedImgUrl;
             }
           } else {
-            // For non-instance complex quests, export current state for all three
+            // For non-instance complex quests, export current state for all four
             lockedImgUrl = await safeExportNodeAsPng(imageNode);
-            closedImgUrl = lockedImgUrl;
-            doneImgUrl = lockedImgUrl;
+            activeImgUrl = lockedImgUrl;
+            unclaimedImgUrl = lockedImgUrl;
+            completedImgUrl = lockedImgUrl;
           }
         } else {
           // For simple quests, export just the Image frame for each state
@@ -539,37 +557,52 @@ export async function scanQuestline(): Promise<ScanResult> {
                 console.log('SCAN DEBUG: locked state export result for', questKeyRaw, ':', lockedImgUrl ? 'SUCCESS' : 'FAILED');
               }
               
-              // Then, export closed state
-              instance.setProperties({ State: 'closed' });
+              // Then, export active state (mandatory)
+              instance.setProperties({ State: 'active' });
               await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
               
-              // Re-find the image node in closed state
-              let closedImageNode: (SceneNode & GeometryMixin) | null = null;
+              // Re-find the image node in active state
+              let activeImageNode: (SceneNode & GeometryMixin) | null = null;
               if (hasFindAll(instance)) {
-                closedImageNode = findImageNode(instance);
+                activeImageNode = findImageNode(instance);
               }
               
-              if (closedImageNode) {
-                closedImgUrl = await safeExportNodeAsPng(closedImageNode);
-                console.log('SCAN DEBUG: closed state export result for', questKeyRaw, ':', closedImgUrl ? 'SUCCESS' : 'FAILED');
+              if (activeImageNode) {
+                activeImgUrl = await safeExportNodeAsPng(activeImageNode);
+                console.log('SCAN DEBUG: active state export result for', questKeyRaw, ':', activeImgUrl ? 'SUCCESS' : 'FAILED');
               }
               
-              // Finally, export open state
-              instance.setProperties({ State: 'open' });
+              // Then, export unclaimed state
+              instance.setProperties({ State: 'unclaimed' });
               await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
               
-              // Re-find the image node in open state
-              let openImageNode: (SceneNode & GeometryMixin) | null = null;
+              // Re-find the image node in unclaimed state
+              let unclaimedImageNode: (SceneNode & GeometryMixin) | null = null;
               if (hasFindAll(instance)) {
-                openImageNode = findImageNode(instance);
+                unclaimedImageNode = findImageNode(instance);
               }
               
-              if (openImageNode) {
-                doneImgUrl = await safeExportNodeAsPng(openImageNode);
-                console.log('SCAN DEBUG: open state export result for', questKeyRaw, ':', doneImgUrl ? 'SUCCESS' : 'FAILED');
+              if (unclaimedImageNode) {
+                unclaimedImgUrl = await safeExportNodeAsPng(unclaimedImageNode);
+                console.log('SCAN DEBUG: unclaimed state export result for', questKeyRaw, ':', unclaimedImgUrl ? 'SUCCESS' : 'FAILED');
+              }
+              
+              // Finally, export completed state
+              instance.setProperties({ State: 'completed' });
+              await new Promise(resolve => setTimeout(resolve, 100)); // Wait for Figma to update
+              
+              // Re-find the image node in completed state
+              let completedImageNode: (SceneNode & GeometryMixin) | null = null;
+              if (hasFindAll(instance)) {
+                completedImageNode = findImageNode(instance);
+              }
+              
+              if (completedImageNode) {
+                completedImgUrl = await safeExportNodeAsPng(completedImageNode);
+                console.log('SCAN DEBUG: completed state export result for', questKeyRaw, ':', completedImgUrl ? 'SUCCESS' : 'FAILED');
               } else {
-                console.log('SCAN DEBUG: could not find image node in open state for', questKeyRaw);
-                doneImgUrl = lockedImgUrl; // Fallback to locked image
+                console.log('SCAN DEBUG: could not find image node in completed state for', questKeyRaw);
+                completedImgUrl = activeImgUrl; // Fallback to active image
               }
               
               // Restore original state
@@ -578,16 +611,18 @@ export async function scanQuestline(): Promise<ScanResult> {
               }
             } catch (e) {
               console.log('SCAN DEBUG: failed to export states for', questKeyRaw, e);
-              // Fallback: use current state for all three
+              // Fallback: use current state for all four
               lockedImgUrl = await safeExportNodeAsPng(imageNode);
-              closedImgUrl = lockedImgUrl;
-              doneImgUrl = lockedImgUrl;
+              activeImgUrl = lockedImgUrl;
+              unclaimedImgUrl = lockedImgUrl;
+              completedImgUrl = lockedImgUrl;
             }
           } else {
-            // For non-instance nodes, export current state for all three
+            // For non-instance nodes, export current state for all four
             lockedImgUrl = await safeExportNodeAsPng(imageNode);
-            closedImgUrl = lockedImgUrl;
-            doneImgUrl = lockedImgUrl;
+            activeImgUrl = lockedImgUrl;
+            unclaimedImgUrl = lockedImgUrl;
+            completedImgUrl = lockedImgUrl;
           }
         }
         
@@ -600,7 +635,7 @@ export async function scanQuestline(): Promise<ScanResult> {
           });
           console.log('SCAN DEBUG: quest', questKeyRaw, 'exportAsync failed, skipping export');
         } else {
-          console.log('SCAN DEBUG: quest', questKeyRaw, 'exportAsync succeeded, lockedImgUrl length:', lockedImgUrl.length, 'doneImgUrl length:', doneImgUrl?.length);
+          console.log('SCAN DEBUG: quest', questKeyRaw, 'exportAsync succeeded, lockedImgUrl length:', lockedImgUrl.length, 'activeImgUrl length:', activeImgUrl?.length);
         }
       } else {
         issues.push({
@@ -624,11 +659,13 @@ export async function scanQuestline(): Promise<ScanResult> {
         h: questBounds.height,
         rotation: (imageNode as any).rotation || 0,
         lockedNodeId: imageNode.id,
-        closedNodeId: imageNode.id,
-        doneNodeId: imageNode.id,
+        activeNodeId: imageNode.id,
+        unclaimedNodeId: imageNode.id,
+        completedNodeId: imageNode.id,
         lockedImgUrl: lockedImgUrl, // State=locked image
-        closedImgUrl: closedImgUrl, // State=closed image
-        doneImgUrl: doneImgUrl,     // State=open image
+        activeImgUrl: activeImgUrl, // State=active image (mandatory)
+        unclaimedImgUrl: unclaimedImgUrl, // State=unclaimed image
+        completedImgUrl: completedImgUrl, // State=completed image
         isFlattened: questElements?.type === 'complex',
       });
     console.log('SCAN DEBUG: quest added, total now', quests.length);

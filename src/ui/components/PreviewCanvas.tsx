@@ -8,7 +8,7 @@ const labelBg = '#23262Fcc';
 export function PreviewCanvas({ frameSize, quests, mode = 'wireframe', previewWidth = 400, previewHeight = 400, backgroundFillUrl }: {
   frameSize: { width: number; height: number };
   quests: any[];
-  mode?: 'wireframe' | 'locked' | 'closed' | 'open';
+  mode?: 'wireframe' | 'locked' | 'active' | 'unclaimed' | 'completed';
   previewWidth?: number;
   previewHeight?: number;
   backgroundFillUrl?: string;
@@ -81,14 +81,16 @@ export function PreviewCanvas({ frameSize, quests, mode = 'wireframe', previewWi
             </div>
           );
         } else {
-          // For locked/closed/open, use the exported data URLs for preview
+          // For locked/active/unclaimed/completed, use the exported data URLs for preview
           let imgSrc: string | undefined;
           if (mode === 'locked') {
             imgSrc = q.lockedImgUrl;
-          } else if (mode === 'closed') {
-            imgSrc = q.closedImgUrl;
-          } else if (mode === 'open') {
-            imgSrc = q.doneImgUrl;
+          } else if (mode === 'active') {
+            imgSrc = q.activeImgUrl;
+          } else if (mode === 'unclaimed') {
+            imgSrc = q.unclaimedImgUrl;
+          } else if (mode === 'completed') {
+            imgSrc = q.completedImgUrl;
           }
           return (
             <div

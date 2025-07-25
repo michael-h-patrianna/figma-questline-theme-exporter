@@ -104,43 +104,62 @@ export async function exportQuestline(scan: ScanResult): Promise<{ json: Questli
       console.log('EXPORT DEBUG: Quest locked image exported for', quest.questKey, 'size:', lockedImg.length);
       images.push({ name: `quest-${quest.questKey}-locked.png`, data: lockedImg });
 
-      // Export closed state
-      instanceNode.setProperties({ State: 'closed' });
+      // Export active state (mandatory)
+      instanceNode.setProperties({ State: 'active' });
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      let closedImageNode: SceneNode | null = null;
+      let activeImageNode: SceneNode | null = null;
       if ('findAll' in instanceNode) {
-        closedImageNode = instanceNode.findOne(child => 
+        activeImageNode = instanceNode.findOne(child => 
           child.type === 'FRAME' && child.name === 'Image'
         ) as SceneNode | null;
       }
       
-      if (!closedImageNode || !('exportAsync' in closedImageNode)) {
-        throw new Error('Image frame not found for closed state');
+      if (!activeImageNode || !('exportAsync' in activeImageNode)) {
+        throw new Error('Image frame not found for active state');
       }
       
-      const closedImg = await closedImageNode.exportAsync({ format: 'PNG' });
-      console.log('EXPORT DEBUG: Quest closed image exported for', quest.questKey, 'size:', closedImg.length);
-      images.push({ name: `quest-${quest.questKey}-closed.png`, data: closedImg });
+      const activeImg = await activeImageNode.exportAsync({ format: 'PNG' });
+      console.log('EXPORT DEBUG: Quest active image exported for', quest.questKey, 'size:', activeImg.length);
+      images.push({ name: `quest-${quest.questKey}-active.png`, data: activeImg });
 
-      // Export done (open) state
-      instanceNode.setProperties({ State: 'open' });
+      // Export unclaimed state
+      instanceNode.setProperties({ State: 'unclaimed' });
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      let openImageNode: SceneNode | null = null;
+      let unclaimedImageNode: SceneNode | null = null;
       if ('findAll' in instanceNode) {
-        openImageNode = instanceNode.findOne(child => 
+        unclaimedImageNode = instanceNode.findOne(child => 
           child.type === 'FRAME' && child.name === 'Image'
         ) as SceneNode | null;
       }
       
-      if (!openImageNode || !('exportAsync' in openImageNode)) {
-        throw new Error('Image frame not found for open state');
+      if (!unclaimedImageNode || !('exportAsync' in unclaimedImageNode)) {
+        throw new Error('Image frame not found for unclaimed state');
       }
       
-      const doneImg = await openImageNode.exportAsync({ format: 'PNG' });
-      console.log('EXPORT DEBUG: Quest done image exported for', quest.questKey, 'size:', doneImg.length);
-      images.push({ name: `quest-${quest.questKey}-done.png`, data: doneImg });
+      const unclaimedImg = await unclaimedImageNode.exportAsync({ format: 'PNG' });
+      console.log('EXPORT DEBUG: Quest unclaimed image exported for', quest.questKey, 'size:', unclaimedImg.length);
+      images.push({ name: `quest-${quest.questKey}-unclaimed.png`, data: unclaimedImg });
+
+      // Export completed state
+      instanceNode.setProperties({ State: 'completed' });
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      let completedImageNode: SceneNode | null = null;
+      if ('findAll' in instanceNode) {
+        completedImageNode = instanceNode.findOne(child => 
+          child.type === 'FRAME' && child.name === 'Image'
+        ) as SceneNode | null;
+      }
+      
+      if (!completedImageNode || !('exportAsync' in completedImageNode)) {
+        throw new Error('Image frame not found for completed state');
+      }
+      
+      const completedImg = await completedImageNode.exportAsync({ format: 'PNG' });
+      console.log('EXPORT DEBUG: Quest completed image exported for', quest.questKey, 'size:', completedImg.length);
+      images.push({ name: `quest-${quest.questKey}-completed.png`, data: completedImg });
 
       // Restore original state
       if (originalState) {
@@ -164,8 +183,9 @@ export async function exportQuestline(scan: ScanResult): Promise<{ json: Questli
       h: quest.h,
       rotation: quest.rotation,
       lockedImg: `quest-${quest.questKey}-locked.png`,
-      closedImg: `quest-${quest.questKey}-closed.png`,
-      doneImg: `quest-${quest.questKey}-done.png`,
+      activeImg: `quest-${quest.questKey}-active.png`,
+      unclaimedImg: `quest-${quest.questKey}-unclaimed.png`,
+      completedImg: `quest-${quest.questKey}-completed.png`,
     });
   }
 
